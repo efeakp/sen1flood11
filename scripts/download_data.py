@@ -1,49 +1,22 @@
 """
-Download SEN1Floods11 dataset.
+Download SEN1Floods11 dataset via Radiant MLHub API.
 
-Supports two methods:
-  --method gsutil   Direct download from Google Cloud Storage (no account needed)
-  --method mlhub    Radiant MLHub API (requires MLHUB_API_KEY env var)
+Requires a free API key from https://mlhub.earth
 
 Usage:
-    python scripts/download_data.py --method gsutil --split hand_labeled --out data/raw
-    python scripts/download_data.py --method mlhub  --split hand_labeled --out data/raw
+    export MLHUB_API_KEY=your_key_here
+    python scripts/download_data.py --split hand_labeled --out data/raw
 """
 
 import argparse
 import os
-import subprocess
 import sys
 from pathlib import Path
 
-GCS_BUCKET = "gs://sen1-floods11-a8d7/v1.1"
 MLHUB_COLLECTION = "sen1floods11_v1.1"
 
-HAND_LABELED_ASSETS = ["S1Hand", "LabelHand"]
-WEAKLY_LABELED_ASSETS = ["S1Weak", "S2Weak", "LabelWeak"]
-
-SPLIT_CSV_PATH = (
-    f"{GCS_BUCKET}/splits/flood_handlabeled_split_stratified.csv"
-)
-
-
-def download_gsutil(split: str, out_dir: Path) -> None:
-    _check_gsutil()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    assets = HAND_LABELED_ASSETS if split == "hand_labeled" else WEAKLY_LABELED_ASSETS
-
-    # Download split CSV first
-    print("Downloading split CSV...")
-    _run(["gsutil", "-m", "cp", SPLIT_CSV_PATH, str(out_dir)])
-
-    for asset in assets:
-        src = f"{GCS_BUCKET}/data/flood_events/{asset}/"
-        dst = str(out_dir / asset)
-        print(f"\nDownloading {asset} -> {dst}")
-        _run(["gsutil", "-m", "cp", "-r", src, dst])
-
-    print(f"\nDone. Data saved to {out_dir}/")
+HAND_LABELED_ASSETS = ["s1hand", "labelhand"]
+WEAKLY_LABELED_ASSETS = ["s1weak", "s2weak", "labelweak"]
 
 
 def download_mlhub(split: str, out_dir: Path) -> None:
@@ -51,7 +24,8 @@ def download_mlhub(split: str, out_dir: Path) -> None:
     if not api_key:
         sys.exit(
             "Error: set MLHUB_API_KEY environment variable.\n"
-            "Register at https://mlhub.earth to get a key."
+            "  export MLHUB_API_KEY=your_key_here\n"
+            "Register for a free key at https://mlhub.earth"
         )
 
     try:
@@ -61,42 +35,29 @@ def download_mlhub(split: str, out_dir: Path) -> None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    assets = HAND_LABELED_ASSETS if split == "hand_labeled" else WEAKLY_LABELED_ASSETS
+    asset_filter = HAND_LABELED_ASSETS if split == "hand_labeled" else WEAKLY_LABELED_ASSETS
 
-    print(f"Fetching collection {MLHUB_COLLECTION} from Radiant MLHub...")
+    print(f"Fetching collection '{MLHUB_COLLECTION}' from Radiant MLHub...")
     dataset = Dataset.fetch(MLHUB_COLLECTION, api_key=api_key)
 
-    for collection in dataset.collections:
-        if any(a.lower() in collection.id.lower() for a in [a.lower() for a in assets]):
-            print(f"Downloading collection: {collection.id}")
-            collection.download(output_dir=str(out_dir))
+    matched = [
+        c for c in dataset.collections
+        if any(a in c.id.lower() for a in asset_filter)
+    ]
+
+    if not matched:
+        print(f"Available collections: {[c.id for c in dataset.collections]}")
+        sys.exit("No matching collections found. Check asset names above.")
+
+    for collection in matched:
+        print(f"Downloading collection: {collection.id}")
+        collection.download(output_dir=str(out_dir))
 
     print(f"\nDone. Data saved to {out_dir}/")
 
 
-def _check_gsutil() -> None:
-    if subprocess.run(["which", "gsutil"], capture_output=True).returncode != 0:
-        sys.exit(
-            "gsutil not found. Install it:\n"
-            "  https://cloud.google.com/storage/docs/gsutil_install\n"
-            "Or use --method mlhub instead."
-        )
-
-
-def _run(cmd: list[str]) -> None:
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        sys.exit(f"Command failed: {' '.join(cmd)}")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download SEN1Floods11 dataset")
-    parser.add_argument(
-        "--method",
-        choices=["gsutil", "mlhub"],
-        default="gsutil",
-        help="Download method (default: gsutil)",
-    )
+    parser = argparse.ArgumentParser(description="Download SEN1Floods11 via Radiant MLHub")
     parser.add_argument(
         "--split",
         choices=["hand_labeled", "weakly_labeled"],
@@ -111,12 +72,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"Method: {args.method} | Split: {args.split} | Output: {args.out}\n")
-
-    if args.method == "gsutil":
-        download_gsutil(args.split, args.out)
-    else:
-        download_mlhub(args.split, args.out)
+    print(f"Split: {args.split} | Output: {args.out}\n")
+    download_mlhub(args.split, args.out)
 
 
 if __name__ == "__main__":

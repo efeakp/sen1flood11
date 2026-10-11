@@ -48,17 +48,11 @@ pip install -r requirements.txt
 
 ### 2. Download the dataset
 
-**Option A — Google Cloud Storage (recommended, no account needed):**
-```bash
-# Install gsutil: https://cloud.google.com/storage/docs/gsutil_install
-python scripts/download_data.py --method gsutil --split hand_labeled
-```
+Register for a free API key at https://mlhub.earth, then:
 
-**Option B — Radiant MLHub API:**
 ```bash
-# Register at https://mlhub.earth and get an API key
 export MLHUB_API_KEY=your_key_here
-python scripts/download_data.py --method mlhub --split hand_labeled
+python scripts/download_data.py --split hand_labeled
 ```
 
 ### 3. Explore the data
