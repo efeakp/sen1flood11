@@ -1,7 +1,9 @@
 data:
   raw_dir: data/raw
   processed_dir: data/processed
-  split_file: data/raw/flood_handlabeled_split.csv
+  train_csv: data/raw/flood_train_data.csv
+  val_csv: data/raw/flood_valid_data.csv
+  test_csv: data/raw/flood_test_data.csv
   img_size: 512
   in_channels: 2  # VV + VH
 

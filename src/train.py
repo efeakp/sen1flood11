@@ -19,14 +19,12 @@ def train(config: dict) -> None:
 
     # --- Data ---
     train_ds = SEN1FloodsDataset(
-        split_csv=config["data"]["split_file"],
+        split_csv=config["data"]["train_csv"],
         data_dir=config["data"]["raw_dir"],
-        split="train",
     )
     val_ds = SEN1FloodsDataset(
-        split_csv=config["data"]["split_file"],
+        split_csv=config["data"]["val_csv"],
         data_dir=config["data"]["raw_dir"],
-        split="val",
     )
 
     train_loader = DataLoader(
