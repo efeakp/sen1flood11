@@ -1,68 +1,67 @@
 """
-Download SEN1Floods11 dataset via Radiant MLHub API.
+Download SEN1Floods11 dataset.
 
-Requires a free API key from https://mlhub.earth
+Supports two methods:
+  --method gsutil   Google Cloud Storage (recommended, no account needed)
+  --method hf       Hugging Face datasets (alternative, no account needed)
 
 Usage:
-    export MLHUB_API_KEY=your_key_here
-    python scripts/download_data.py --split hand_labeled --out data/raw
+    python scripts/download_data.py --method gsutil --out data/raw
+    python scripts/download_data.py --method hf     --out data/raw
 """
 
 import argparse
-import os
+import subprocess
 import sys
 from pathlib import Path
 
-MLHUB_COLLECTION = "sen1floods11_v1.1"
-
-HAND_LABELED_ASSETS = ["s1hand", "labelhand"]
-WEAKLY_LABELED_ASSETS = ["s1weak", "s2weak", "labelweak"]
+GCS_BUCKET = "gs://sen1floods11"
 
 
-def download_mlhub(split: str, out_dir: Path) -> None:
-    api_key = os.environ.get("MLHUB_API_KEY")
-    if not api_key:
-        sys.exit(
-            "Error: set MLHUB_API_KEY environment variable.\n"
-            "  export MLHUB_API_KEY=your_key_here\n"
-            "Register for a free key at https://mlhub.earth"
-        )
-
-    try:
-        from radiant_mlhub import Dataset
-    except ImportError:
-        sys.exit("Install radiant-mlhub: pip install radiant-mlhub")
-
+def download_gsutil(out_dir: Path) -> None:
+    _check_gsutil()
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    asset_filter = HAND_LABELED_ASSETS if split == "hand_labeled" else WEAKLY_LABELED_ASSETS
-
-    print(f"Fetching collection '{MLHUB_COLLECTION}' from Radiant MLHub...")
-    dataset = Dataset.fetch(MLHUB_COLLECTION, api_key=api_key)
-
-    matched = [
-        c for c in dataset.collections
-        if any(a in c.id.lower() for a in asset_filter)
-    ]
-
-    if not matched:
-        print(f"Available collections: {[c.id for c in dataset.collections]}")
-        sys.exit("No matching collections found. Check asset names above.")
-
-    for collection in matched:
-        print(f"Downloading collection: {collection.id}")
-        collection.download(output_dir=str(out_dir))
-
+    print(f"Downloading SEN1Floods11 from {GCS_BUCKET} -> {out_dir}")
+    print("This is ~14 GB for the full dataset. Ctrl+C to cancel.\n")
+    _run(["gsutil", "-m", "rsync", "-r", GCS_BUCKET, str(out_dir)])
     print(f"\nDone. Data saved to {out_dir}/")
 
 
+def download_hf(out_dir: Path) -> None:
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        sys.exit("Install huggingface datasets: pip install datasets")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print("Downloading SEN1Floods11 from Hugging Face (harshinde/sen1floods11)...")
+    ds = load_dataset("harshinde/sen1floods11", cache_dir=str(out_dir))
+    print(f"\nDone. Dataset cached to {out_dir}/")
+    print(f"Splits available: {list(ds.keys())}")
+
+
+def _check_gsutil() -> None:
+    if subprocess.run(["which", "gsutil"], capture_output=True).returncode != 0:
+        sys.exit(
+            "gsutil not found. Install it:\n"
+            "  pip install gsutil\n"
+            "Or use --method hf instead."
+        )
+
+
+def _run(cmd: list[str]) -> None:
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        sys.exit(f"Command failed: {' '.join(cmd)}")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download SEN1Floods11 via Radiant MLHub")
+    parser = argparse.ArgumentParser(description="Download SEN1Floods11 dataset")
     parser.add_argument(
-        "--split",
-        choices=["hand_labeled", "weakly_labeled"],
-        default="hand_labeled",
-        help="Which labeled subset to download (default: hand_labeled)",
+        "--method",
+        choices=["gsutil", "hf"],
+        default="gsutil",
+        help="Download method: gsutil (GCS) or hf (Hugging Face). Default: gsutil",
     )
     parser.add_argument(
         "--out",
@@ -72,8 +71,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"Split: {args.split} | Output: {args.out}\n")
-    download_mlhub(args.split, args.out)
+    print(f"Method: {args.method} | Output: {args.out}\n")
+
+    if args.method == "gsutil":
+        download_gsutil(args.out)
+    else:
+        download_hf(args.out)
 
 
 if __name__ == "__main__":

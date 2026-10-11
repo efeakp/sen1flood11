@@ -48,12 +48,18 @@ pip install -r requirements.txt
 
 ### 2. Download the dataset
 
-Register for a free API key at https://mlhub.earth, then:
-
+**Option A — Google Cloud Storage (recommended, no account needed):**
 ```bash
-export MLHUB_API_KEY=your_key_here
-python scripts/download_data.py --split hand_labeled
+python scripts/download_data.py --method gsutil
 ```
+
+**Option B — Hugging Face (alternative, no account needed):**
+```bash
+pip install datasets
+python scripts/download_data.py --method hf
+```
+
+> Full dataset is ~14 GB. Both methods download everything to `data/raw/`.
 
 ### 3. Explore the data
 
